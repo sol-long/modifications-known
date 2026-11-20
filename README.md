@@ -20,7 +20,7 @@
 
 > 一个安静、可靠、可解释的模组管理器：不隐藏文件系统，不静默覆盖，不让免费账号在 403 面前一脸问号。
 
-**当前版本：`0.8.0-beta.2`（本 fork 构建）** · [下载 Release](https://github.com/sol-long/modifications-known/releases/tag/v0.8.0-beta.2)  
+**下载：** [最新 Release](https://github.com/sol-long/modifications-known/releases/latest)（文件名与 SHA-256 见 Release 页面）  
 **平台：** Windows 10/11 · **运行时：** .NET 8 · **UI：** Avalonia 11
 
 ---
@@ -169,28 +169,18 @@
 
 ### 使用发布版
 
-1. 从 [GitHub Releases](https://github.com/sol-long/modifications-known/releases/tag/v0.8.0-beta.2) 下载 `win-x64` 单文件 exe。
+1. 从 [GitHub Releases](https://github.com/sol-long/modifications-known/releases/latest) 下载最新的 `win-x64` 单文件 exe。
 2. 启动 MK，在“设置 → 游戏与版本”添加游戏实例。
 3. 在实例的 `⋯` 菜单安装 BepInEx。
 4. 在“设置 → Nexus Mods”填入 API Key，按需注册 NXM。
 5. 到“模组发现”浏览、下载、安装；到“已安装模组”启停或更新。
 
-直接下载：
-
-```text
-https://github.com/sol-long/modifications-known/releases/download/v0.8.0-beta.2/ModificationsKnown-v0.8.0-beta.2-win-x64.exe
-```
-
-SHA-256：
-
-```text
-e30cf5512b137d6bd9870800a7b3476d0ea26b7d81a98e0c2f3fb4040d96aee0
-```
+文件名与 SHA-256 都列在 Release 页面的 Assets 里，下载后可以对照校验。
 
 需要控制台日志时：
 
 ```powershell
-.\ModificationsKnown-v0.8.0-beta.2-win-x64.exe --console
+.\ModificationsKnown-v<版本>-win-x64.exe --console
 ```
 
 ### 从源码运行
