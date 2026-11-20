@@ -28,7 +28,8 @@ public sealed partial class SaveGroupRow : ObservableObject
         Func<SaveGroupRow, Task> open,
         Func<SaveGroupRow, Task> export,
         Func<SaveGroupRow, Task> rename,
-        Func<SaveGroupRow, Task> delete)
+        Func<SaveGroupRow, Task> delete,
+        SaveTab initialTab = SaveTab.Single)
     {
         Installation = installation;
         Group = group;
@@ -38,6 +39,20 @@ public sealed partial class SaveGroupRow : ObservableObject
         _canDeleteGroup = canDeleteGroup;
         Details = details;
         Saves = details.Saves.Select(save => new SaveSlotCard(save)).ToList();
+        MultiplayerSaves = details.MultiplayerSaves.Select(save => new SaveSlotCard(save)).ToList();
+
+        // Single-player content wins by default; a group that only has multiplayer
+        // data opens on the multiplayer tab instead of showing an empty list.
+        _selectedTab = initialTab == SaveTab.Multiplayer && HasMultiplayer
+            ? SaveTab.Multiplayer
+            : Saves.Count == 0 && HasMultiplayer
+                ? SaveTab.Multiplayer
+                : SaveTab.Single;
+
+        ShowSingleTabCommand = new RelayCommand(() => SelectedTab = SaveTab.Single);
+        ShowMultiplayerTabCommand = new RelayCommand(
+            () => SelectedTab = SaveTab.Multiplayer,
+            () => HasMultiplayer);
 
         OpenCommand = new AsyncRelayCommand(() => open(this));
         ExportCommand = new AsyncRelayCommand(() => export(this), () => CanExport);
@@ -75,6 +90,27 @@ public sealed partial class SaveGroupRow : ObservableObject
     public SaveGroupDetails Details { get; }
 
     public IReadOnlyList<SaveSlotCard> Saves { get; }
+
+    public IReadOnlyList<SaveSlotCard> MultiplayerSaves { get; }
+
+    public bool HasMultiplayer => MultiplayerSaves.Count > 0;
+
+    public int MultiplayerSlotCount => Details.MultiplayerSlotCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSingleTab))]
+    [NotifyPropertyChangedFor(nameof(IsMultiplayerTab))]
+    private SaveTab _selectedTab;
+
+    public bool IsSingleTab => SelectedTab == SaveTab.Single;
+
+    public bool IsMultiplayerTab => SelectedTab == SaveTab.Multiplayer;
+
+    public string MultiplayerTabTip => HasMultiplayer ? "查看联机存档" : "该存档组没有联机存档";
+
+    public IRelayCommand ShowSingleTabCommand { get; }
+
+    public IRelayCommand ShowMultiplayerTabCommand { get; }
 
     public bool HasSaves => Saves.Count > 0;
 
@@ -200,4 +236,11 @@ public sealed partial class SaveGroupRow : ObservableObject
         DeleteCommand.NotifyCanExecuteChanged();
         SelectCommand.NotifyCanExecuteChanged();
     }
+}
+
+/// <summary>Which tab of 存档详情 a group row shows.</summary>
+public enum SaveTab
+{
+    Single,
+    Multiplayer
 }

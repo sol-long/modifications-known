@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ModificationsKnown.App.ViewModels;
@@ -44,6 +45,14 @@ public partial class SavesView : UserControl
         }
 
         row.ToggleExpandedCommand.Execute(null);
+        e.Handled = true;
+    }
+
+    /// <summary>Toggles the player list inside a multiplayer card.</summary>
+    private void OnTogglePlayersClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: SaveSlotCard card }) return;
+        card.PlayersExpanded = !card.PlayersExpanded;
         e.Handled = true;
     }
 

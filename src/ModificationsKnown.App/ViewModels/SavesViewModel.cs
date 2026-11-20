@@ -430,6 +430,10 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
             linkOwner);
     }
 
+    /// <summary>Remembers the 存档详情 tab per group so a refresh does not snap every
+    /// row back to the single-player list.</summary>
+    private readonly Dictionary<Guid, SaveTab> _selectedTabs = [];
+
     private async Task<SaveGroupRow> BuildGroupRowAsync(
         GameInstallation installation,
         SaveGroup group,
@@ -455,7 +459,7 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
             };
         }
 
-        return new SaveGroupRow(
+        var row = new SaveGroupRow(
             installation,
             group,
             isCurrent,
@@ -466,7 +470,16 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
             OpenGroupAsync,
             ExportGroupAsync,
             RenameGroupAsync,
-            DeleteGroupAsync);
+            DeleteGroupAsync,
+            _selectedTabs.GetValueOrDefault(group.Id, SaveTab.Single));
+
+        row.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SaveGroupRow.SelectedTab))
+                _selectedTabs[row.Id] = row.SelectedTab;
+        };
+
+        return row;
     }
 
     /// <summary>Updates only the running flags; list items, expansion, scroll
@@ -585,8 +598,15 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
                 row.Group,
                 SaveGameInfo.FromInstallation(row.Installation, _gameVersions.ReadVersion(row.Installation)),
                 target);
+            var incomplete = row.Details.MultiplayerSaves
+                .Count(entry => entry.Multiplayer?.IsIncomplete == true);
+            var multiplayerNote = row.MultiplayerSlotCount > 0
+                ? $"（含 {row.MultiplayerSlotCount} 个联机槽位"
+                  + (incomplete > 0 ? $"，{incomplete} 个不完整" : string.Empty)
+                  + "）"
+                : string.Empty;
             _shell.SetStatus(
-                result.Success ? $"{result.Message} 已保存到 {result.ArchivePath}" : result.Message,
+                result.Success ? $"{result.Message}{multiplayerNote} 已保存到 {result.ArchivePath}" : result.Message,
                 result.Success ? StatusKind.Success : StatusKind.Error);
         }
         finally

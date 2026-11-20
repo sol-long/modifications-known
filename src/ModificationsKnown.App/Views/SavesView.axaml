@@ -60,6 +60,38 @@
         <Style Selector="Button.flat:pressed">
             <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
         </Style>
+        <!-- 存档详情 tabs: pill buttons next to the caption. `.on` marks the
+             selected tab; the multiplayer button is disabled (with a tooltip)
+             when the group has no multiplayer content. -->
+        <Style Selector="Button.tab">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="10,2" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="Button.tab.on">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <!-- Card actions such as "展开玩家": an outlined pill in the theme accent,
+             same family as the detail tabs but tinted so it reads as a button. -->
+        <Style Selector="Button.pill">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="10,2" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Button.pill:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}" />
+        </Style>
         <Style Selector="Border.tag">
             <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
             <Setter Property="CornerRadius" Value="5" />
@@ -401,10 +433,26 @@
                                                                        IsVisible="{Binding HasError}" />
 
                                                             <StackPanel Spacing="6" IsVisible="{Binding IsExpanded}">
-                                                                <TextBlock Text="存档详情"
-                                                                           Classes="caption"
-                                                                           Margin="0,2,0,2" />
+                                                                <StackPanel Orientation="Horizontal"
+                                                                            Spacing="8"
+                                                                            Margin="0,2,0,2">
+                                                                    <TextBlock Text="存档详情"
+                                                                               Classes="caption"
+                                                                               VerticalAlignment="Center" />
+                                                                    <Button Content="单人存档"
+                                                                            Classes="tab"
+                                                                            Classes.on="{Binding IsSingleTab}"
+                                                                            Command="{Binding ShowSingleTabCommand}" />
+                                                                    <Button Content="多人存档"
+                                                                            Classes="tab"
+                                                                            Classes.on="{Binding IsMultiplayerTab}"
+                                                                            IsEnabled="{Binding HasMultiplayer}"
+                                                                            ToolTip.Tip="{Binding MultiplayerTabTip}"
+                                                                            ToolTip.ShowOnDisabled="True"
+                                                                            Command="{Binding ShowMultiplayerTabCommand}" />
+                                                                </StackPanel>
 
+                                                                <StackPanel Spacing="6" IsVisible="{Binding IsSingleTab}">
                                                                 <ItemsControl ItemsSource="{Binding Saves}">
                                                                     <ItemsControl.ItemTemplate>
                                                                         <DataTemplate>
@@ -472,6 +520,116 @@
                                                                            Classes="caption"
                                                                            TextWrapping="Wrap"
                                                                            IsVisible="{Binding IsEmpty}" />
+                                                                </StackPanel>
+
+                                                                <StackPanel Spacing="6" IsVisible="{Binding IsMultiplayerTab}">
+                                                                    <ItemsControl ItemsSource="{Binding MultiplayerSaves}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <Border Classes="save-card" Margin="0,0,0,6">
+                                                                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="7">
+                                                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                                                <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                                                                <ItemsControl ItemsSource="{Binding Badges}">
+                                                                                                    <ItemsControl.ItemsPanel>
+                                                                                                        <ItemsPanelTemplate>
+                                                                                                            <WrapPanel Orientation="Horizontal" />
+                                                                                                        </ItemsPanelTemplate>
+                                                                                                    </ItemsControl.ItemsPanel>
+                                                                                                    <ItemsControl.ItemTemplate>
+                                                                                                        <DataTemplate>
+                                                                                                            <Border Classes="tag" Margin="0,0,4,0">
+                                                                                                                <TextBlock Text="{Binding}" />
+                                                                                                            </Border>
+                                                                                                        </DataTemplate>
+                                                                                                    </ItemsControl.ItemTemplate>
+                                                                                                </ItemsControl>
+                                                                                            </StackPanel>
+                                                                                            <TextBlock Grid.Column="1" Text="{Binding FileLine}" Classes="caption" FontSize="11" VerticalAlignment="Center" />
+                                                                                        </Grid>
+
+                                                                                        <ItemsControl Grid.Row="1" ItemsSource="{Binding Facts}">
+                                                                                            <ItemsControl.ItemsPanel>
+                                                                                                <ItemsPanelTemplate>
+                                                                                                    <WrapPanel Orientation="Horizontal" />
+                                                                                                </ItemsPanelTemplate>
+                                                                                            </ItemsControl.ItemsPanel>
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate>
+                                                                                                    <Border Classes="tag" Margin="0,0,4,4" ToolTip.Tip="{Binding Tip}">
+                                                                                                        <TextBlock Text="{Binding Text}" />
+                                                                                                    </Border>
+                                                                                                </DataTemplate>
+                                                                                            </ItemsControl.ItemTemplate>
+                                                                                        </ItemsControl>
+
+                                                                                        <TextBlock Grid.Row="2"
+                                                                                                   Text="{Binding PlayerSummary}"
+                                                                                                   Classes="caption"
+                                                                                                   TextWrapping="Wrap"
+                                                                                                   IsVisible="{Binding HasPlayerSummary}" />
+
+                                                                                        <StackPanel Grid.Row="3" Spacing="4" IsVisible="{Binding HasPlayers}">
+                                                                                            <Button Content="{Binding PlayerListLabel}"
+                                                                                                    Classes="pill"
+                                                                                                    HorizontalAlignment="Left"
+                                                                                                    Click="OnTogglePlayersClick" />
+                                                                                            <ItemsControl ItemsSource="{Binding Players}" IsVisible="{Binding ShowPlayers}">
+                                                                                                <ItemsControl.ItemTemplate>
+                                                                                                    <DataTemplate>
+                                                                                                        <StackPanel Spacing="4" Margin="0,3,0,0">
+                                                                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                                                                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" ToolTip.Tip="{Binding NameTip}" />
+                                                                                                                <ItemsControl ItemsSource="{Binding Facts}">
+                                                                                                                    <ItemsControl.ItemsPanel>
+                                                                                                                        <ItemsPanelTemplate>
+                                                                                                                            <WrapPanel Orientation="Horizontal" />
+                                                                                                                        </ItemsPanelTemplate>
+                                                                                                                    </ItemsControl.ItemsPanel>
+                                                                                                                    <ItemsControl.ItemTemplate>
+                                                                                                                        <DataTemplate>
+                                                                                                                            <Border Classes="tag" Margin="0,0,4,0" ToolTip.Tip="{Binding Tip}">
+                                                                                                                                <TextBlock Text="{Binding Text}" />
+                                                                                                                            </Border>
+                                                                                                                        </DataTemplate>
+                                                                                                                    </ItemsControl.ItemTemplate>
+                                                                                                                </ItemsControl>
+                                                                                                            </StackPanel>
+                                                                                                            <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
+                                                                                                                <ItemsControl.ItemsPanel>
+                                                                                                                    <ItemsPanelTemplate>
+                                                                                                                        <WrapPanel Orientation="Horizontal" />
+                                                                                                                    </ItemsPanelTemplate>
+                                                                                                                </ItemsControl.ItemsPanel>
+                                                                                                                <ItemsControl.ItemTemplate>
+                                                                                                                    <DataTemplate>
+                                                                                                                        <Border Classes="tag" Margin="0,0,4,4">
+                                                                                                                            <TextBlock Text="{Binding}" />
+                                                                                                                        </Border>
+                                                                                                                    </DataTemplate>
+                                                                                                                </ItemsControl.ItemTemplate>
+                                                                                                            </ItemsControl>
+                                                                                                            <TextBlock Text="{Binding ItemsMore}" Classes="caption" IsVisible="{Binding HasMoreItems}" />
+                                                                                                            <TextBlock Text="{Binding Error}" Classes="caption" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                                                                                                        </StackPanel>
+                                                                                                    </DataTemplate>
+                                                                                                </ItemsControl.ItemTemplate>
+                                                                                            </ItemsControl>
+                                                                                        </StackPanel>
+
+                                                                                        <StackPanel Grid.Row="4" Spacing="6">
+                                                                                            <TextBlock Text="{Binding IncompleteNote}" Classes="caption" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" IsVisible="{Binding IsIncomplete}" />
+                                                                                            <TextBlock Text="{Binding ClientSnapshotNote}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding IsClientSnapshot}" />
+                                                                                            <TextBlock Text="{Binding LiveHint}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding IsLive}" />
+                                                                                            <TextBlock Text="{Binding Error}" Classes="caption" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                                                                                        </StackPanel>
+                                                                                    </Grid>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
                                                             </StackPanel>
                                                         </StackPanel>
                                                     </Border>
