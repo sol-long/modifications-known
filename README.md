@@ -169,7 +169,7 @@
 
 ### 使用发布版
 
-1. 从 [GitHub Releases](https://github.com/sol-long/modifications-known/releases/tag/v0.8.0-beta.1) 下载 `win-x64` 单文件 exe。
+1. 从 [GitHub Releases](https://github.com/sol-long/modifications-known/releases/tag/v0.8.0-beta.2) 下载 `win-x64` 单文件 exe。
 2. 启动 MK，在“设置 → 游戏与版本”添加游戏实例。
 3. 在实例的 `⋯` 菜单安装 BepInEx。
 4. 在“设置 → Nexus Mods”填入 API Key，按需注册 NXM。
@@ -178,19 +178,19 @@
 直接下载：
 
 ```text
-https://github.com/sol-long/modifications-known/releases/download/v0.8.0-beta.1/ModificationsKnown-v0.8.0-beta.1-win-x64.exe
+https://github.com/sol-long/modifications-known/releases/download/v0.8.0-beta.2/ModificationsKnown-v0.8.0-beta.2-win-x64.exe
 ```
 
 SHA-256：
 
 ```text
-f47b99197cbb0da382ded380671d249c0b8df60d0abe533b8ba55ba7c9cfde93
+e30cf5512b137d6bd9870800a7b3476d0ea26b7d81a98e0c2f3fb4040d96aee0
 ```
 
 需要控制台日志时：
 
 ```powershell
-.\ModificationsKnown-v0.8.0-beta.1-win-x64.exe --console
+.\ModificationsKnown-v0.8.0-beta.2-win-x64.exe --console
 ```
 
 ### 从源码运行
