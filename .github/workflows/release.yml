@@ -1,0 +1,95 @@
+name: release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the leading v (build-only, no Release)"
+        required: true
+        default: "0.0.0-local"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore ModificationsKnown.sln
+
+      - name: Build
+        run: dotnet build ModificationsKnown.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test ModificationsKnown.sln -c Release --no-build
+
+      - name: Resolve version and asset name
+        id: meta
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#v}"
+            asset="ModificationsKnown-${tag}-win-x64.exe"
+            prerelease=false
+            case "$version" in
+              *-*) prerelease=true ;;
+            esac
+          else
+            version="${{ inputs.version }}"
+            asset="ModificationsKnown-v${version}-win-x64.exe"
+            prerelease=false
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "asset=${asset}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish single-file
+        run: >
+          dotnet publish src/ModificationsKnown.App/ModificationsKnown.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:Version=${{ steps.meta.outputs.version }}
+          -o out
+
+      - name: Rename asset
+        shell: pwsh
+        run: Move-Item out/ModificationsKnown.exe "out/${{ steps.meta.outputs.asset }}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ModificationsKnown-win-x64
+          path: out/${{ steps.meta.outputs.asset }}
+          if-no-files-found: error
+
+      - name: Create release
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          asset="${{ steps.meta.outputs.asset }}"
+          args=()
+          if [ "${{ steps.meta.outputs.prerelease }}" = "true" ]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${GITHUB_REF_NAME}" "out/${asset}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            "${args[@]}"
