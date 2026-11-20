@@ -152,7 +152,7 @@ https://github.com/sol-long/modifications-known/releases/download/v0.8.0-beta.1/
 SHA-256：
 
 ```text
-7d356951bc93d3c355d8050a616a282564783df1075c0e039d95f8f6bfaa3350
+f47b99197cbb0da382ded380671d249c0b8df60d0abe533b8ba55ba7c9cfde93
 ```
 
 需要控制台日志时：
