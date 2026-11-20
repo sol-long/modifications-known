@@ -1,7 +1,7 @@
 > **这是 [HOPE-LGNF/modifications-known](https://github.com/HOPE-LGNF/modifications-known) 的 fork 项目。**
 
 <p align="center">
-  <img src="docs/images/home.jpg" alt="已知改装 / Modifications Known 概览页" width="100%">
+  <img src="docs/images/home.png" alt="已知改装 / Modifications Known 概览页" width="100%">
 </p>
 
 <h1 align="center">已知改装 · Modifications Known</h1>
@@ -20,7 +20,7 @@
 
 > 一个安静、可靠、可解释的模组管理器：不隐藏文件系统，不静默覆盖，不让免费账号在 403 面前一脸问号。
 
-**当前版本：`0.7.0-beta`** · [下载 Release](https://github.com/HOPE-LGNF/modifications-known/releases/tag/v0.7.0-beta)  
+**当前版本：`0.8.0-beta.1`（本 fork 构建）** · [下载 Release](https://github.com/sol-long/modifications-known/releases/tag/v0.8.0-beta.1)  
 **平台：** Windows 10/11 · **运行时：** .NET 8 · **UI：** Avalonia 11
 
 ---
@@ -96,10 +96,10 @@
 ### 概览
 
 <p align="center">
-  <img src="docs/images/home.jpg" alt="概览：实例状态、清单、最近活动" width="100%">
+  <img src="docs/images/home.png" alt="概览：实例状态、存档组、日志入口与最近活动" width="100%">
 </p>
 
-当前实例、BepInEx 状态、模组数量、存档隔离、启动按钮和最近活动集中在一页。
+当前实例、BepInEx 状态、模组数量、存档组与隔离状态、日志入口、启动按钮和最近活动集中在一页。
 
 ### 模组发现
 
@@ -137,7 +137,7 @@
 
 ### 使用发布版
 
-1. 从 [GitHub Releases](https://github.com/HOPE-LGNF/modifications-known/releases/tag/v0.7.0-beta) 下载 `win-x64` 单文件 exe；GitHub 无法访问时可用 [蓝奏云镜像](https://unauthhope.lanzout.com/iYnH04g2143g)（密码 `f1ka`）。
+1. 从 [GitHub Releases](https://github.com/sol-long/modifications-known/releases/tag/v0.8.0-beta.1) 下载 `win-x64` 单文件 exe。
 2. 启动 MK，在“设置 → 游戏与版本”添加游戏实例。
 3. 在实例的 `⋯` 菜单安装 BepInEx。
 4. 在“设置 → Nexus Mods”填入 API Key，按需注册 NXM。
@@ -146,19 +146,19 @@
 直接下载：
 
 ```text
-https://github.com/HOPE-LGNF/modifications-known/releases/download/v0.7.0-beta/ModificationsKnown-v0.7.0-beta-win-x64.exe
+https://github.com/sol-long/modifications-known/releases/download/v0.8.0-beta.1/ModificationsKnown-v0.8.0-beta.1-win-x64.exe
 ```
 
 SHA-256：
 
 ```text
-aeba515098bd8f1318362efd9a664d85ba9093227351819b7c6adb90cb3d54f0
+7d356951bc93d3c355d8050a616a282564783df1075c0e039d95f8f6bfaa3350
 ```
 
 需要控制台日志时：
 
 ```powershell
-.\ModificationsKnown-v0.7.0-beta-win-x64.exe --console
+.\ModificationsKnown-v0.8.0-beta.1-win-x64.exe --console
 ```
 
 ### 从源码运行
