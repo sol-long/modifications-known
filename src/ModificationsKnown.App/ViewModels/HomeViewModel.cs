@@ -222,11 +222,25 @@ public partial class HomeViewModel : ObservableObject, IAsyncPage
             BepInExReady = installation.HasBepInEx;
             NexusConfigured = !string.IsNullOrWhiteSpace(_settings.Current.NexusApiKey);
             LastLaunchLabel = FormatLastLaunch(_settings.Current.LastLaunchAt);
-            var currentSaveGroup = _saveGroups.GetLiveGroup(installation);
-            SaveGroupLabel = currentSaveGroup?.Name ?? "未指定";
-            SaveProfilePath = currentSaveGroup?.DirectoryPath ?? "—";
-            SaveIsolationLabel = DescribeIsolation(installation);
-            CurrentGroupLabel = DescribeCurrentGroup(installation.GameDirectory);
+            if (_saveGroups.HostingState == SaveHostingState.Enabled)
+            {
+                var currentSaveGroup = _saveGroups.GetLiveGroup(installation);
+                SaveGroupLabel = currentSaveGroup?.Name ?? "未指定";
+                SaveProfilePath = currentSaveGroup?.DirectoryPath ?? "—";
+                SaveIsolationLabel = DescribeIsolation(installation);
+                CurrentGroupLabel = DescribeCurrentGroup(installation.GameDirectory);
+            }
+            else
+            {
+                // Disabled/PendingRecovery: the live link is not MK's to
+                // describe, so do not scan groups or report “link missing”.
+                SaveGroupLabel = "—";
+                SaveProfilePath = "—";
+                CurrentGroupLabel = "—";
+                SaveIsolationLabel = _saveGroups.HostingState == SaveHostingState.PendingRecovery
+                    ? "存档托管状态待恢复"
+                    : "托管已关闭：游戏使用自己的存档目录";
+            }
             UpdateRunningState();
             await RefreshNexusAccountAsync();
 

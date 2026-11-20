@@ -17,6 +17,7 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
 {
     private readonly IAppShell _shell;
     private readonly SaveGroupService _saveGroups;
+    private readonly HostingSwitchCoordinator _hosting;
     private readonly SaveGroupArchiveService _archive;
     private readonly SaveSlotReader _slotReader;
     private readonly IFilePickerService _filePicker;
@@ -29,8 +30,27 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
     // user's selection or the expanded block.
     private bool _suppressSelectionSave;
 
+    // Bumped whenever the hosting switch changes. A refresh that started under
+    // the old mode must not repopulate the page after it was disabled.
+    private int _hostingGeneration;
+
     [ObservableProperty]
     private string _emptyMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool _isHostingEnabled = true;
+
+    [ObservableProperty]
+    private bool _isHostingDisabled;
+
+    [ObservableProperty]
+    private bool _canToggleHosting = true;
+
+    [ObservableProperty]
+    private bool _hasHostingRecovery;
+
+    [ObservableProperty]
+    private string _hostingRecoveryHint = string.Empty;
 
     /// <summary>Global fact shown once at the top: the LocalLow junction points
     /// at exactly one group, and this says whose it is.</summary>
@@ -64,6 +84,7 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
     public SavesViewModel(
         IAppShell shell,
         SaveGroupService saveGroups,
+        HostingSwitchCoordinator hosting,
         SaveGroupArchiveService archive,
         SaveSlotReader slotReader,
         IFilePickerService filePicker,
@@ -74,6 +95,7 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
     {
         _shell = shell;
         _saveGroups = saveGroups;
+        _hosting = hosting;
         _archive = archive;
         _slotReader = slotReader;
         _filePicker = filePicker;
@@ -92,6 +114,12 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
         // A process-state change only flips IsRunning: rebuilding the list here
         // would drop scroll position, expansion and the row selection.
         _processMonitor.Changed += (_, _) => Dispatcher.UIThread.Post(ApplyRunningState);
+        _hosting.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            _hostingGeneration++;
+            RefreshHostingState();
+        });
+        RefreshHostingState();
     }
 
     public ObservableCollection<SaveInstallationItem> Instances { get; } = [];
@@ -130,6 +158,13 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
         // competing refresh.
         IsBusy ? Task.CompletedTask : RefreshCoreAsync();
 
+    /// <summary>
+    /// Import flows must always repaint the page, even when the import itself
+    /// still holds the row's busy flag. Unlike the manual header refresh this
+    /// deliberately does not treat IsBusy as "nothing to do".
+    /// </summary>
+    public Task RefreshAfterImportAsync() => RefreshCoreAsync();
+
     /// <summary>One save operation at a time: the page blocks pointer input
     /// while <see cref="IsBusy"/> and every handler re-checks this flag, so a
     /// second click cannot start a competing import/export/apply.</summary>
@@ -146,6 +181,19 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
         try
         {
             AnyRunning = _processMonitor.AnyRunning;
+            RefreshHostingState();
+            if (!IsHostingEnabled)
+            {
+                // Disabled means the page keeps only the switch and the two
+                // explanation lines; it must not even scan group metadata.
+                Instances.Clear();
+                EmptyMessage = string.Empty;
+                HasLiveOwner = false;
+                ActiveInstallationKey = null;
+                return;
+            }
+
+            var generation = _hostingGeneration;
             var activePath = _shell.Game.Selected?.GameDirectory;
             var liveOwner = TryDescribeLiveOwner();
             var liveOwnerLabel = liveOwner?.Label;
@@ -185,6 +233,7 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
                         activePath,
                         liveOwnerLabel,
                         expandedOverride);
+                    if (generation != _hostingGeneration) return;
                     if (item is null)
                     {
                         item = new SaveInstallationItem(
@@ -910,7 +959,7 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
             }
         }
 
-        await RefreshCoreAsync();
+        await RefreshAfterImportAsync();
         if (group is null) return;
 
         _shell.SetStatus(
@@ -919,4 +968,261 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
                 : $"「{group.Name}」已创建；当前存档保持不变。",
             applied ? StatusKind.Success : StatusKind.Info);
     }
+
+    // ---------------------------------------------------------------------
+    // Hosting switch
+    // ---------------------------------------------------------------------
+
+    private void RefreshHostingState()
+    {
+        var state = _hosting.State;
+        IsHostingEnabled = state == SaveHostingState.Enabled;
+        IsHostingDisabled = !IsHostingEnabled;
+        CanToggleHosting = state is SaveHostingState.Enabled or SaveHostingState.Disabled;
+        HasHostingRecovery = state == SaveHostingState.PendingRecovery;
+        HostingRecoveryHint = HasHostingRecovery ? BuildHostingRecoveryHint() : string.Empty;
+        if (!IsHostingEnabled)
+        {
+            HasLiveOwner = false;
+            AnyRunning = _processMonitor.AnyRunning;
+        }
+    }
+
+    private string BuildHostingRecoveryHint()
+    {
+        var message = _hosting.StatusMessage;
+        try
+        {
+            var paths = _saveGroups.GetHostingRecoveryInfo()
+                .SelectMany(info => new[]
+                {
+                    info.LiveDirectory, info.StagingPath, info.RollbackPath, info.BackupPath
+                })
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(4)
+                .ToList();
+            return paths.Count == 0
+                ? message
+                : $"{message} 相关路径：{string.Join("；", paths)}";
+        }
+        catch
+        {
+            return message;
+        }
+    }
+
+    /// <summary>Called by the view's toggle. The switch only changes after the
+    /// whole transaction (copy/link/settings) has committed.</summary>
+    public async Task SetHostingAsync(bool enable)
+    {
+        if (IsBusy) return;
+        if (enable) await EnableHostingAsync();
+        else await DisableHostingAsync();
+    }
+
+    private async Task DisableHostingAsync()
+    {
+        var liveKind = _saveGroups.DescribeLive().Kind;
+
+        // D5: when the live path is not MK's link there is nothing to copy
+        // back, so no “restore” dialog and no success toast. Failures still
+        // surface through the service result.
+        if (liveKind == HostingLiveKind.MkGroupLink)
+        {
+            var confirmed = await _dialogs.ConfirmDangerAsync(
+                "关闭托管并还原存档",
+                "关闭托管？游戏会开始使用自己的存档目录，MK 保留现有存档组。",
+                "关闭托管",
+                "取消");
+            if (!confirmed)
+            {
+                RefreshHostingState();
+                return;
+            }
+        }
+
+        IsBusy = true;
+        try
+        {
+            var result = await _hosting.DisableAsync();
+            _hostingGeneration++;
+
+            // D5: an external/dangling link is left untouched and the UI does
+            // not claim the saves were “put back”. Failures still surface.
+            var silent = result.Success && liveKind is HostingLiveKind.ExternalLink
+                or HostingLiveKind.DanglingLink;
+            if (!silent)
+                _shell.SetStatus(result.Message, StatusFor(result));
+        }
+        catch (Exception exception)
+        {
+            _shell.SetStatus($"关闭托管失败：{exception.Message}", StatusKind.Error);
+        }
+        finally
+        {
+            IsBusy = false;
+            RefreshHostingState();
+            await RefreshAsync();
+        }
+    }
+
+    private async Task EnableHostingAsync()
+    {
+        if (_shell.Game.Selected is not { } installation)
+        {
+            _shell.SetStatus("还没有选择游戏实例；请先在设置中添加实例。", StatusKind.Warning);
+            return;
+        }
+
+        var preview = _saveGroups.GetHostingEnablePreview(installation);
+        var generation = _hostingGeneration;
+        var installationKey = SaveGroupFormat.GetInstallationKey(installation.GameDirectory);
+        if (preview.Live.Kind == HostingLiveKind.ExternalLink)
+        {
+            _shell.SetStatus(
+                "游戏存档目录指向 MK 之外的位置，未开启托管。请先将其恢复为普通目录后重试。",
+                StatusKind.Warning);
+            return;
+        }
+
+        HostingEnableRequest? request = null;
+        if (preview.Live.Kind == HostingLiveKind.Data)
+        {
+            var decision = await _dialogs.PickHostingEnableAsync(
+                installation.DisplayLabel,
+                preview.Live.LiveDirectory,
+                preview.Live.FileCount,
+                preview.Groups,
+                preview.SelectedGroupId,
+                preview.SuggestedName);
+            if (decision is null) return;
+            if (HostingDialogBecameStale(generation, installationKey)) return;
+            request = new HostingEnableRequest(
+                decision.Choice,
+                decision.NewGroupName,
+                decision.TargetGroupId,
+                decision.BackupTargetGroup);
+        }
+
+        IsBusy = true;
+        try
+        {
+            var result = await _hosting.EnableAsync(installation, request);
+
+            // The live folder can gain data between the preview and the
+            // transaction; ask once with the fresh candidate list.
+            if (result.State == HostingOperationState.NeedsChoice)
+            {
+                var decision = await _dialogs.PickHostingEnableAsync(
+                    installation.DisplayLabel,
+                    result.LiveDirectory,
+                    result.FileCount,
+                    result.Groups ?? [],
+                    preview.SelectedGroupId,
+                    preview.SuggestedName);
+                if (decision is null) return;
+                if (HostingDialogBecameStale(generation, installationKey)) return;
+
+                result = await _hosting.EnableAsync(installation, new HostingEnableRequest(
+                    decision.Choice,
+                    decision.NewGroupName,
+                    decision.TargetGroupId,
+                    decision.BackupTargetGroup));
+            }
+
+            _hostingGeneration++;
+            _shell.SetStatus(result.Message, StatusFor(result));
+        }
+        catch (Exception exception)
+        {
+            _shell.SetStatus($"开启托管失败：{exception.Message}", StatusKind.Error);
+        }
+        finally
+        {
+            IsBusy = false;
+            RefreshHostingState();
+            await RefreshAfterImportAsync();
+        }
+    }
+
+    [RelayCommand]
+    private async Task AcceptExistingLinkAsync()
+    {
+        if (_shell.Game.Selected is not { } installation) return;
+
+        IsBusy = true;
+        try
+        {
+            var result = await _hosting.RestoreFromRecoveryAsync(installation);
+            _hostingGeneration++;
+            _shell.SetStatus(result.Message, StatusFor(result));
+        }
+        catch (Exception exception)
+        {
+            _shell.SetStatus($"恢复托管失败：{exception.Message}", StatusKind.Error);
+        }
+        finally
+        {
+            IsBusy = false;
+            RefreshHostingState();
+            await RefreshAsync();
+        }
+    }
+
+    [RelayCommand]
+    private async Task DisableHostingFromRecoveryAsync()
+    {
+        var confirmed = await _dialogs.ConfirmAsync(
+            "安全关闭托管",
+            "关闭托管？MK 会把当前存档还原到游戏目录，并保留现有存档组。",
+            "关闭托管",
+            "取消");
+        if (!confirmed) return;
+
+        IsBusy = true;
+        try
+        {
+            var result = await _hosting.DisableFromRecoveryAsync(_shell.Game.Selected);
+            _hostingGeneration++;
+            _shell.SetStatus(result.Message, StatusFor(result));
+        }
+        catch (Exception exception)
+        {
+            _shell.SetStatus($"关闭托管失败：{exception.Message}", StatusKind.Error);
+        }
+        finally
+        {
+            IsBusy = false;
+            RefreshHostingState();
+            await RefreshAsync();
+        }
+    }
+
+    private bool HostingDialogBecameStale(int generation, string installationKey)
+    {
+        var current = _shell.Game.Selected;
+        if (_hostingGeneration == generation
+            && current is not null
+            && string.Equals(
+                SaveGroupFormat.GetInstallationKey(current.GameDirectory),
+                installationKey,
+                StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        _shell.SetStatus(
+            "游戏实例或托管状态在对话框打开期间已变化；本次选择已丢弃，未改动任何存档。",
+            StatusKind.Warning);
+        return true;
+    }
+
+    private static StatusKind StatusFor(HostingOperationResult result) =>
+        result.Success
+            ? StatusKind.Success
+            : result.State is HostingOperationState.RunningLocked
+                or HostingOperationState.NeedsChoice
+                or HostingOperationState.PendingRecovery
+                or HostingOperationState.Canceled
+                ? StatusKind.Warning
+                : StatusKind.Error;
 }

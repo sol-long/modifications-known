@@ -62,6 +62,8 @@ internal sealed class FakeAppSettingsService : IAppSettingsService
 {
     public AppSettings Current { get; } = new();
 
+    public HostingPreference Hosting { get; } = new(true, HostingPreferenceSource.Enabled);
+
     public int SaveCount { get; private set; }
 
     public event EventHandler? Changed;

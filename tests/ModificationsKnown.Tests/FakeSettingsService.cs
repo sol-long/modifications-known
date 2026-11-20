@@ -6,6 +6,9 @@ internal sealed class FakeSettingsService : IAppSettingsService
 {
     public AppSettings Current { get; } = new();
 
+    public HostingPreference Hosting { get; set; } =
+        new(null, HostingPreferenceSource.MissingFile);
+
     public event EventHandler? Changed;
 
     public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

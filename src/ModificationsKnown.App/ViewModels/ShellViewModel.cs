@@ -29,6 +29,7 @@ public partial class ShellViewModel : ObservableObject, IAppShell
     private readonly IGameLauncher _launcher;
     private readonly IUserDialogService _dialogs;
     private readonly SaveGroupService _saveGroups;
+    private readonly HostingSwitchCoordinator _hosting;
     private readonly ActivityLogService _activity;
     private readonly GameProcessMonitor _processMonitor;
     private readonly GameLogSourceProvider _logSourceProvider;
@@ -150,9 +151,11 @@ public partial class ShellViewModel : ObservableObject, IAppShell
             // running installation locks every save-group write. The probe scans
             // at call time and reports Unknown when process info is hidden,
             // which the service treats as “running”.
-            ProbeGameRunningState = _ => _processMonitor.ProbeAnyRunning()
+            ProbeGameRunningState = _ => _processMonitor.ProbeAnyRunning(),
+            ProbeAnyGameRunningState = () => _processMonitor.ProbeAnyRunning()
         });
         _processMonitor.Start();
+        _hosting = new HostingSwitchCoordinator(_saveGroups, settings, logger);
         var saveArchive = new SaveGroupArchiveService(
             isGameRunning: () => _processMonitor.ProbeAnyRunning() != GameRunningState.NotRunning,
             // Export/import share the save-group write lock with apply/delete.
@@ -202,7 +205,7 @@ public partial class ShellViewModel : ObservableObject, IAppShell
             ["home"] = new HomeViewModel(this, locator, modManager, launcher, settings, nexus, _activity, _processMonitor, nxmRegistrar, dialogs, _saveGroups),
             ["discover"] = new DiscoverViewModel(this, nexus, settings, downloader, operations, thumbnails, sources, nxmRegistrar, dialogs, updates, logger),
             ["installed"] = new InstalledViewModel(this, operations, dialogs, settings, nexusMatch, sources, filePicker, manualMatches, modGroups, nexus, thumbnails, _processMonitor, downloader, updates, nxmRegistrar, logger),
-            ["saves"] = new SavesViewModel(this, _saveGroups, saveArchive, new SaveSlotReader(), filePicker, dialogs, logger, _processMonitor, new GameExecutableVersionReader()),
+            ["saves"] = new SavesViewModel(this, _saveGroups, _hosting, saveArchive, new SaveSlotReader(), filePicker, dialogs, logger, _processMonitor, new GameExecutableVersionReader()),
             ["logs"] = new LogViewerViewModel(
                 this,
                 _logSourceProvider,
@@ -321,6 +324,10 @@ public partial class ShellViewModel : ObservableObject, IAppShell
         _initialized = true;
 
         ThemeService.Apply(Settings.Current.ThemePreset);
+        // The hosting preference must be resolved before the first instance
+        // sync: a missing/corrupt config with an MK link still in place becomes
+        // PendingRecovery instead of being adopted or overwritten.
+        await _hosting.InitializeAsync();
         SetStatus("正在加载版本列表…");
         await LoadInstancesAsync(rediscover: false);
         await ActivateCurrentPageAsync();
@@ -555,6 +562,14 @@ public partial class ShellViewModel : ObservableObject, IAppShell
     private async Task SyncActiveSaveGroupAsync(GameInstallation? installation, bool announce)
     {
         if (installation is null) return;
+        var hosting = _saveGroups.HostingState;
+        if (hosting != SaveHostingState.Enabled)
+        {
+            if (hosting is SaveHostingState.PendingRecovery)
+                SetStatus(_saveGroups.HostingStatusMessage, StatusKind.Warning);
+            return;
+        }
+
         var version = ++_saveGroupSyncVersion;
 
         var result = await _saveGroups.EnsureActiveGroupAsync(installation);
@@ -613,7 +628,7 @@ public partial class ShellViewModel : ObservableObject, IAppShell
                 Game.Selected = target;
                 SetStatus($"已导入到「{targetLabel}」的「{imported.Group?.Name}」，并切换到该版本。",
                     StatusKind.Success);
-                await ActivateCurrentPageAsync();
+                await RefreshPagesAfterImportAsync();
                 return;
             }
 
@@ -628,13 +643,16 @@ public partial class ShellViewModel : ObservableObject, IAppShell
                 : UnmanagedSaveAction.CreateEmpty;
             result = await _saveGroups.EnsureActiveGroupAsync(target, action);
             if (version != _saveGroupSyncVersion) return;
+            if (result.Success && action == UnmanagedSaveAction.Import
+                && ReferenceEquals(target, installation))
+                await RefreshPagesAfterImportAsync();
 
             if (result.Success && !ReferenceEquals(target, installation))
             {
                 var targetLabel = target.DisplayLabel;
                 Game.Selected = target;
                 SetStatus($"已把现有存档交给「{targetLabel}」，并切换到该版本。", StatusKind.Success);
-                await ActivateCurrentPageAsync();
+                await RefreshPagesAfterImportAsync();
                 return;
             }
         }
@@ -696,6 +714,21 @@ public partial class ShellViewModel : ObservableObject, IAppShell
     /// </summary>
     private async Task<bool> PrepareSaveGroupForLaunchAsync(GameInstallation installation)
     {
+        var hosting = _saveGroups.HostingState;
+        if (hosting == SaveHostingState.Disabled)
+            return true;
+
+        if (hosting is SaveHostingState.PendingRecovery or SaveHostingState.Transition
+            or SaveHostingState.Unknown)
+        {
+            SetStatus(
+                string.IsNullOrWhiteSpace(_saveGroups.HostingStatusMessage)
+                    ? "存档托管状态待恢复；请先在存档管理中处理后再启动。"
+                    : _saveGroups.HostingStatusMessage,
+                StatusKind.Warning);
+            return false;
+        }
+
         // A second copy of the game may only start when the live link already
         // points at the selected group; any group write is locked meanwhile.
         if (_processMonitor.AnyRunning)
@@ -708,6 +741,7 @@ public partial class ShellViewModel : ObservableObject, IAppShell
             return false;
         }
 
+        var importedDuringLaunch = false;
         var init = await _saveGroups.InitializeAsync(installation);
         if (init.State == SaveGroupInitializationState.NeedsUnmanagedChoice)
         {
@@ -754,6 +788,7 @@ public partial class ShellViewModel : ObservableObject, IAppShell
                         SetStatus(imported.Message, StatusKind.Error);
                         return false;
                     }
+                    importedDuringLaunch = true;
                 }
                 else
                 {
@@ -771,17 +806,20 @@ public partial class ShellViewModel : ObservableObject, IAppShell
                         SetStatus(received.Message, StatusKind.Error);
                         return false;
                     }
+                    importedDuringLaunch = wantsImport;
                 }
 
                 var targetLabel = target.DisplayLabel;
                 Game.Selected = target;
                 SetStatus($"已把现有存档交给「{targetLabel}」；请启动这个版本。", StatusKind.Success);
+                await RefreshPagesAfterImportAsync();
                 return false;
             }
 
             init = await _saveGroups.InitializeAsync(
                 installation,
                 wantsImport ? UnmanagedSaveAction.Import : UnmanagedSaveAction.CreateEmpty);
+            importedDuringLaunch = wantsImport;
         }
 
         if (!init.Success)
@@ -789,6 +827,9 @@ public partial class ShellViewModel : ObservableObject, IAppShell
             SetStatus(init.Message, StatusKind.Error);
             return false;
         }
+
+        if (importedDuringLaunch)
+            await RefreshPagesAfterImportAsync();
 
         var preview = _saveGroups.GetLaunchPreview(installation);
         if (preview.NeedsInitialization || preview.Group is null)
@@ -917,6 +958,20 @@ public partial class ShellViewModel : ObservableObject, IAppShell
         CurrentPage = next;
         OnPropertyChanged(nameof(IsGameSkinOverlayVisible));
         _ = ActivateCurrentPageAsync();
+    }
+
+    /// <summary>
+    /// Import completion is a data change, not a page-switch event. Refresh the
+    /// saves page even when it is already current (and therefore will not get a
+    /// fresh OnActivatedAsync call), then refresh whatever page is visible.
+    /// </summary>
+    private async Task RefreshPagesAfterImportAsync()
+    {
+        var saves = _pages.GetValueOrDefault("saves") as SavesViewModel;
+        if (saves is not null)
+            await saves.RefreshAfterImportAsync();
+        if (!ReferenceEquals(CurrentPage, saves))
+            await ActivateCurrentPageAsync();
     }
 
     private async Task ActivateCurrentPageAsync()

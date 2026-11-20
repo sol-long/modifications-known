@@ -1,0 +1,107 @@
+<views:DialogWindow xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:views="using:ModificationsKnown.App.Views"
+                    x:Class="ModificationsKnown.App.Views.HostingEnableDialog"
+                    Title="重新开启存档托管">
+    <Grid>
+        <Border Name="DialogScrim"
+                Opacity="0"
+                Background="{DynamicResource DialogScrimBrush}" />
+
+        <Border Name="DialogCard"
+                Opacity="0"
+                RenderTransform="scale(0.97)"
+                RenderTransformOrigin="50%,50%"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MinWidth="480"
+                MaxWidth="620"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="16"
+                Padding="26,24"
+                BoxShadow="0 20 56 0 #A0000000">
+            <StackPanel Spacing="12">
+                <TextBlock Text="重新开启存档托管"
+                           FontSize="20"
+                           FontWeight="SemiBold" />
+                <TextBlock Name="SummaryText"
+                           Text=""
+                           Classes="muted"
+                           FontSize="13"
+                           TextWrapping="Wrap" />
+                <TextBlock Name="DirectoryText"
+                           Text=""
+                           Classes="mono"
+                           FontSize="10"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap" />
+                <TextBlock Name="InstanceText"
+                           Text=""
+                           Classes="caption"
+                           TextWrapping="Wrap" />
+
+                <Border Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="12,10">
+                    <StackPanel Spacing="8">
+                        <RadioButton Name="ImportRadio"
+                                     GroupName="HostingMode"
+                                     IsChecked="True"
+                                     Checked="OnChoiceChanged"
+                                     Content="导入为新存档组" />
+                        <StackPanel Margin="26,0,0,0" Spacing="4">
+                            <TextBlock Text="新存档组名称" Classes="caption" />
+                            <TextBox Name="NameBox" TextChanged="OnNameChanged" />
+                        </StackPanel>
+
+                        <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,2" />
+
+                        <RadioButton Name="OverwriteRadio"
+                                     GroupName="HostingMode"
+                                     Checked="OnChoiceChanged"
+                                     Content="覆盖已有存档组" />
+                        <StackPanel Margin="26,0,0,0" Spacing="6">
+                            <ComboBox Name="GroupCombo"
+                                      MinWidth="320"
+                                      SelectionChanged="OnGroupChanged">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <CheckBox Name="BackupCheck"
+                                      Content="先备份被覆盖的组"
+                                      IsChecked="True" />
+                            <TextBlock Text="覆盖会保留目标组的名称与 ID；原组内容先暂存，提交成功后才按勾选清理。"
+                                       Classes="caption"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Name="HintText"
+                           Text=""
+                           Classes="caption"
+                           TextWrapping="Wrap" />
+
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,8,0,0">
+                    <Button Grid.Column="1"
+                            Name="CancelButton"
+                            Classes="Ghost"
+                            Content="取消"
+                            Click="OnCancelClick" />
+                    <Button Grid.Column="2"
+                            Name="ConfirmButton"
+                            Classes="Primary"
+                            Content="开启托管"
+                            Click="OnConfirmClick" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</views:DialogWindow>

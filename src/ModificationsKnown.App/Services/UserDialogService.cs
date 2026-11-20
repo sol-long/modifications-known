@@ -11,6 +11,14 @@ namespace ModificationsKnown.App.Services;
 
 public sealed record UpdateModChoice(bool Backup);
 
+/// <summary>What the re-enable dialog decided. Null (cancel/close) means no
+/// file is touched.</summary>
+public sealed record HostingEnableDecision(
+    HostingEnableChoice Choice,
+    string? NewGroupName,
+    Guid? TargetGroupId,
+    bool BackupTargetGroup);
+
 public interface IUserDialogService
 {
     Task<bool> ConfirmAsync(string title, string message, string confirmText = "确认", string cancelText = "取消");
@@ -47,6 +55,17 @@ public interface IUserDialogService
         int fileCount,
         IReadOnlyList<UnmanagedSaveCandidate> candidates,
         string? selectedInstallationKey);
+
+    /// <summary>Re-enable decision: import the live folder as a new group, or
+    /// overwrite one of the receiving instance's groups. The receiving
+    /// instance is always the active one.</summary>
+    Task<HostingEnableDecision?> PickHostingEnableAsync(
+        string installationLabel,
+        string liveDirectory,
+        int fileCount,
+        IReadOnlyList<SaveGroup> groups,
+        Guid? selectedGroupId,
+        string suggestedName);
 }
 
 public sealed class UserDialogService : IUserDialogService
@@ -169,6 +188,22 @@ public sealed class UserDialogService : IUserDialogService
 
         var dialog = new UnmanagedSaveDialog(liveDirectory, fileCount, candidates, selectedInstallationKey);
         return await dialog.ShowDialog<UnmanagedSaveDecision?>(owner);
+    }
+
+    public async Task<HostingEnableDecision?> PickHostingEnableAsync(
+        string installationLabel,
+        string liveDirectory,
+        int fileCount,
+        IReadOnlyList<SaveGroup> groups,
+        Guid? selectedGroupId,
+        string suggestedName)
+    {
+        var owner = _ownerProvider();
+        if (owner is null) return null;
+
+        var dialog = new HostingEnableDialog(
+            installationLabel, liveDirectory, fileCount, groups, selectedGroupId, suggestedName);
+        return await dialog.ShowDialog<HostingEnableDecision?>(owner);
     }
 }
 

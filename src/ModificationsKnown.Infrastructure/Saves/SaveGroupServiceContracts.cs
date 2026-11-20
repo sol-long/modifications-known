@@ -15,6 +15,10 @@ public sealed class SaveGroupOptions
 
     public string? StagingRoot { get; init; }
 
+    /// <summary>Transaction markers live outside the catalog; a leftover marker
+    /// blocks destructive work until the user resolves it.</summary>
+    public string? JournalRoot { get; init; }
+
     public string LiveSaveDirectory { get; init; } = ResolveLiveSaveDirectory();
 
     private static string ResolveLiveSaveDirectory() =>
@@ -44,6 +48,16 @@ public sealed class SaveGroupOptions
     /// is used and cannot report <c>Unknown</c>.
     /// </summary>
     public Func<GameInstallation, GameRunningState>? ProbeGameRunningState { get; init; }
+
+    /// <summary>
+    /// Global probe for hosting switches. The live link is shared by every
+    /// installation, so a per-installation probe is not enough. When unset the
+    /// service treats the state as <c>Unknown</c> and refuses to switch.
+    /// </summary>
+    public Func<GameRunningState>? ProbeAnyGameRunningState { get; init; }
+
+    /// <summary>Test-only fault injection point; never set by the app.</summary>
+    internal Action<string>? HostingFaultHook { get; init; }
 }
 
 public enum SaveGroupInitializationState

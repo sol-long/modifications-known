@@ -41,4 +41,11 @@ public sealed class AppSettings
     /// Stable by default; unknown or missing values fall back to Stable.</summary>
     [JsonConverter(typeof(AppUpdateChannelJsonConverter))]
     public AppUpdateChannel UpdateChannel { get; set; } = AppUpdateChannel.Stable;
+
+    /// <summary>
+    /// null means the settings file predates the save-hosting switch; the host
+    /// migrates that case to <c>true</c>. A genuinely new install gets
+    /// <c>false</c> explicitly.
+    /// </summary>
+    public bool? HostingEnabled { get; set; }
 }
