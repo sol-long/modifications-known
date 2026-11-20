@@ -158,6 +158,13 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
         // competing refresh.
         IsBusy ? Task.CompletedTask : RefreshCoreAsync();
 
+    /// <summary>
+    /// Import flows must always repaint the page, even when the import itself
+    /// still holds the row's busy flag. Unlike the manual header refresh this
+    /// deliberately does not treat IsBusy as "nothing to do".
+    /// </summary>
+    public Task RefreshAfterImportAsync() => RefreshCoreAsync();
+
     /// <summary>One save operation at a time: the page blocks pointer input
     /// while <see cref="IsBusy"/> and every handler re-checks this flag, so a
     /// second click cannot start a competing import/export/apply.</summary>
@@ -952,7 +959,7 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
             }
         }
 
-        await RefreshCoreAsync();
+        await RefreshAfterImportAsync();
         if (group is null) return;
 
         _shell.SetStatus(
@@ -1135,7 +1142,7 @@ public partial class SavesViewModel : ObservableObject, IAsyncPage
         {
             IsBusy = false;
             RefreshHostingState();
-            await RefreshAsync();
+            await RefreshAfterImportAsync();
         }
     }
 

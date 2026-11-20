@@ -628,7 +628,7 @@ public partial class ShellViewModel : ObservableObject, IAppShell
                 Game.Selected = target;
                 SetStatus($"已导入到「{targetLabel}」的「{imported.Group?.Name}」，并切换到该版本。",
                     StatusKind.Success);
-                await ActivateCurrentPageAsync();
+                await RefreshPagesAfterImportAsync();
                 return;
             }
 
@@ -643,13 +643,16 @@ public partial class ShellViewModel : ObservableObject, IAppShell
                 : UnmanagedSaveAction.CreateEmpty;
             result = await _saveGroups.EnsureActiveGroupAsync(target, action);
             if (version != _saveGroupSyncVersion) return;
+            if (result.Success && action == UnmanagedSaveAction.Import
+                && ReferenceEquals(target, installation))
+                await RefreshPagesAfterImportAsync();
 
             if (result.Success && !ReferenceEquals(target, installation))
             {
                 var targetLabel = target.DisplayLabel;
                 Game.Selected = target;
                 SetStatus($"已把现有存档交给「{targetLabel}」，并切换到该版本。", StatusKind.Success);
-                await ActivateCurrentPageAsync();
+                await RefreshPagesAfterImportAsync();
                 return;
             }
         }
@@ -738,6 +741,7 @@ public partial class ShellViewModel : ObservableObject, IAppShell
             return false;
         }
 
+        var importedDuringLaunch = false;
         var init = await _saveGroups.InitializeAsync(installation);
         if (init.State == SaveGroupInitializationState.NeedsUnmanagedChoice)
         {
@@ -784,6 +788,7 @@ public partial class ShellViewModel : ObservableObject, IAppShell
                         SetStatus(imported.Message, StatusKind.Error);
                         return false;
                     }
+                    importedDuringLaunch = true;
                 }
                 else
                 {
@@ -801,17 +806,20 @@ public partial class ShellViewModel : ObservableObject, IAppShell
                         SetStatus(received.Message, StatusKind.Error);
                         return false;
                     }
+                    importedDuringLaunch = wantsImport;
                 }
 
                 var targetLabel = target.DisplayLabel;
                 Game.Selected = target;
                 SetStatus($"已把现有存档交给「{targetLabel}」；请启动这个版本。", StatusKind.Success);
+                await RefreshPagesAfterImportAsync();
                 return false;
             }
 
             init = await _saveGroups.InitializeAsync(
                 installation,
                 wantsImport ? UnmanagedSaveAction.Import : UnmanagedSaveAction.CreateEmpty);
+            importedDuringLaunch = wantsImport;
         }
 
         if (!init.Success)
@@ -819,6 +827,9 @@ public partial class ShellViewModel : ObservableObject, IAppShell
             SetStatus(init.Message, StatusKind.Error);
             return false;
         }
+
+        if (importedDuringLaunch)
+            await RefreshPagesAfterImportAsync();
 
         var preview = _saveGroups.GetLaunchPreview(installation);
         if (preview.NeedsInitialization || preview.Group is null)
@@ -947,6 +958,20 @@ public partial class ShellViewModel : ObservableObject, IAppShell
         CurrentPage = next;
         OnPropertyChanged(nameof(IsGameSkinOverlayVisible));
         _ = ActivateCurrentPageAsync();
+    }
+
+    /// <summary>
+    /// Import completion is a data change, not a page-switch event. Refresh the
+    /// saves page even when it is already current (and therefore will not get a
+    /// fresh OnActivatedAsync call), then refresh whatever page is visible.
+    /// </summary>
+    private async Task RefreshPagesAfterImportAsync()
+    {
+        var saves = _pages.GetValueOrDefault("saves") as SavesViewModel;
+        if (saves is not null)
+            await saves.RefreshAfterImportAsync();
+        if (!ReferenceEquals(CurrentPage, saves))
+            await ActivateCurrentPageAsync();
     }
 
     private async Task ActivateCurrentPageAsync()
