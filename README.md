@@ -1,3 +1,5 @@
+> **这是 [HOPE-LGNF/modifications-known](https://github.com/HOPE-LGNF/modifications-known) 的 fork 项目。**
+
 <p align="center">
   <img src="docs/images/home.jpg" alt="已知改装 / Modifications Known 概览页" width="100%">
 </p>
