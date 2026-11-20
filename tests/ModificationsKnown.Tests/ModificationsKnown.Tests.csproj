@@ -23,4 +23,8 @@
     <ProjectReference Include="..\..\src\ModificationsKnown.Infrastructure\ModificationsKnown.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

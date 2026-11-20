@@ -56,6 +56,24 @@ public sealed class SaveSlotMetadata
     /// <summary>Layout specific save kind (QoL writes e.g. "Manual").</summary>
     public string? SaveKind { get; set; }
 
+    /// <summary>QoL multiplayer metadata, read from <c>slot_N.sv.meta</c>.</summary>
+    public string? MultiplayerSaveId { get; set; }
+
+    public string? MultiplayerVersion { get; set; }
+
+    public string? MultiplayerGameVersion { get; set; }
+
+    public string? MultiplayerBundleName { get; set; }
+
+    /// <summary>Persistent player id a client snapshot belongs to (<c>NAME_…</c>/<c>STEAM_…</c>).</summary>
+    public string? LocalPersistentPlayerId { get; set; }
+
+    /// <summary>Mod names recorded in the save metadata, when the sidecar lists them.</summary>
+    public IReadOnlyList<string> MetaModNames { get; set; } = [];
+
+    /// <summary>Multiplayer facts for host bundles, client snapshots and the live run.</summary>
+    public MultiplayerSaveInfo? Multiplayer { get; set; }
+
     public bool IsMultiplayer { get; set; }
 
     /// <summary>

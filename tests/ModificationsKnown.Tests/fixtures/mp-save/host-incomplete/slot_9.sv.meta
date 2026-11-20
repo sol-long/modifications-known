@@ -1,0 +1,56 @@
+{
+  "SeedInput": "",
+  "SeedValue": 0,
+  "SeedFormatVersion": 2,
+  "LocationName": "5m Deep",
+  "Timestamp": "2026/11/20 14:17",
+  "BiomeIndex": 0,
+  "PlayerPosition": {
+    "x": 2.82667613,
+    "y": 495.6165,
+    "z": 0.0
+  },
+  "UseVanillaLayerSpawn": false,
+  "RadLinePosY": 514.0,
+  "RadLineActive": false,
+  "RadLineRemainingSeconds": 3577.85742,
+  "IGTSeconds": 22.3416271,
+  "RTASeconds": 30.7516785,
+  "LoadedFromMenu": false,
+  "SavedDuringMultiplayer": true,
+  "SaveKind": "MultiplayerHostBundle",
+  "MultiplayerBundleName": "slot_9.mp",
+  "MultiplayerSaveId": "8675",
+  "MultiplayerVersion": "5.5.4",
+  "MultiplayerGameVersion": "1.0.2",
+  "KrokoshaSaveId": "8675",
+  "KrokoshaMpVersion": "5.5.4",
+  "KrokoshaGameVersion": "1.0.2",
+  "LocalPersistentPlayerId": null,
+  "Mods": [
+    {
+      "Guid": "sol-long.cu.keepmyachievement",
+      "Name": "CU-KeepMyAchievement"
+    },
+    {
+      "Guid": "net.cucorelib",
+      "Name": "CUCoreLib"
+    },
+    {
+      "Guid": "dannad.krmultiupdater",
+      "Name": "multiupdater"
+    },
+    {
+      "Guid": "org.bepinex.plugins.qol_unknown",
+      "Name": "QoL Unknown"
+    },
+    {
+      "Guid": "com.yourname.spritereplacer",
+      "Name": "Sprite Replacer"
+    },
+    {
+      "Guid": "CasualtiesMP",
+      "Name": "Together"
+    }
+  ]
+}
