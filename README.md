@@ -20,7 +20,7 @@
 
 > 一个安静、可靠、可解释的模组管理器：不隐藏文件系统，不静默覆盖，不让免费账号在 403 面前一脸问号。
 
-**当前版本：`0.8.0-beta.1`（本 fork 构建）** · [下载 Release](https://github.com/sol-long/modifications-known/releases/tag/v0.8.0-beta.1)  
+**当前版本：`0.8.0-beta.2`（本 fork 构建）** · [下载 Release](https://github.com/sol-long/modifications-known/releases/tag/v0.8.0-beta.2)  
 **平台：** Windows 10/11 · **运行时：** .NET 8 · **UI：** Avalonia 11
 
 ---
@@ -50,6 +50,7 @@
 《未知伤亡》的正式版与试玩版会并行存在，BepInEx 模组又经常以“一个文件夹 = 一个包”的形式分发。MK 围绕这两个现实设计：
 
 - **实例是一等公民**：每个游戏目录有自己的 BepInEx、存档组、Mod 组和 Nexus 来源记录。
+- **存档组同样是一等公民**：同一份游戏可以有多套完整存档，点击即切换；正式版和试玩版不再共用一份 `save.sv`。存档页能读原版单槽、QoL 多槽和 Together 联机存档，全程只读。
 - **包是操作单位**：多 DLL 模组整体启停、整体卸载，而不是逐个 DLL 猜测。
 - **写入可解释**：安装前预检、包内 manifest、哈希校验、失败报告具体到包。
 - **本地优先**：配置、日志、缓存、备份都在本机；没有账号后端，也不上传模组文件。
@@ -63,6 +64,15 @@
 - 实例别名、重新探测 Steam 库、删除实例（存档组保留在 AppData，不会被复制或删除）。
 - 启动检测：Steam 实例走 `steam://`，非 Steam 实例直接启动自己的 exe。
 - 运行状态监控；可选“阻止单实例多开”，运行中把“启动游戏”切换为红色“关闭游戏”。
+
+### 存档组与联机存档
+
+- 每个实例可以有多套完整存档组，用 NTFS junction 切换；点击某个组即保存，当前实例立刻切换，其他实例只更新选定组。从 Steam 直接启动也写进当前组。
+- 未托管存档导入成「默认」或「导入的存档」；ZIP 备份带 `manifest.json`（相对路径 + 大小 + SHA-256），导入只新建组，不覆盖、不合并；删除走 Windows 回收站。
+- 任一实例在运行时，选择、新建、克隆、重命名、导入、导出、删除全部禁用；写操作前重新扫描进程。
+- 读取三种真实布局：原版单槽 `save.sv`、QoL.Unknown 的自由槽（`slot_N.sv` + `slot_N.sv.meta` + `qol_slots.json`）、Together 的联机存档。
+- 联机存档单独一个页签：QoL 房主槽（`slot_N.mp\`）、`slot_N.client.json` 客机快照与当前 `mp_save\`，显示联机规则、玩家名单和每名玩家的物品；房主槽缺件时标记「联机存档不完整」。全部只读。
+- 难度、角色、种子与游玩时长按游戏真实预设识别（51 键严格匹配，缺键或未知键显示「自定义」）。
 
 ### BepInEx 与模组
 
@@ -112,15 +122,37 @@
 ### 已安装模组
 
 <p align="center">
-  <img src="docs/images/installed.jpg" alt="已安装模组：托管状态、依赖、启用开关与更新" width="100%">
+  <img src="docs/images/install.png" alt="已安装模组：托管状态、依赖、启用开关与更新" width="100%">
 </p>
 
-按包展示托管状态、DLL 数量、依赖摘要、启用开关和更多操作；顶部支持检查更新与一键更新。
+按包展示托管状态、DLL 数量、依赖摘要、启用开关和更多操作；顶部支持 Mod 组切换、检查更新与一键更新。
+
+### 存档管理
+
+<p align="center">
+  <img src="docs/images/saves.png" alt="存档管理：多套存档组、槽位、难度与保存时间" width="100%">
+</p>
+
+每个实例的多套存档组、当前使用的组和各槽位的层级、难度、角色、游玩时长、保存时间集中在一页。
+
+<p align="center">
+  <img src="docs/images/saves-mp.png" alt="多人存档：房主槽、当前联机存档、玩家与物品" width="100%">
+</p>
+
+「多人存档」页签把 QoL 房主槽和当前 `mp_save\` 分开列出，展开玩家可以看到每人的角色、坐标和物品。
+
+### 日志
+
+<p align="center">
+  <img src="docs/images/logs.png" alt="日志：按级别筛选、搜索、复制单条或列表" width="100%">
+</p>
+
+只读日志尾部：按文件、级别、范围筛选，字面匹配搜索，复制单条或当前列表；日志正文不会写进 MK 自己的日志。
 
 ### 启动器外观
 
 <p align="center">
-  <img src="docs/images/themes.jpg" alt="启动器外观：苔原、日光、夜航" width="100%">
+  <img src="docs/images/themes.png" alt="启动器外观：苔原、日光、夜航" width="100%">
 </p>
 
 主题只改启动器颜色变量，不会修改游戏、BepInEx 或第三方模组文件。
@@ -128,7 +160,7 @@
 ### 设置
 
 <p align="center">
-  <img src="docs/images/settings.jpg" alt="设置：实例、Nexus API Key、游戏域" width="100%">
+  <img src="docs/images/settings.png" alt="设置：实例、Nexus API Key、游戏域" width="100%">
 </p>
 
 实例管理、Nexus API Key、游戏域、日志/数据目录、NXM 注册、启动器更新。
@@ -233,6 +265,19 @@ API 文档：<https://api-docs.nexusmods.com/>
 - **难度**：把存档 `runSettings` 与游戏装配里的六个预设逐项对比（预设表取自 `RunSettings.presets`，共 51 个键；官方译名为艰难/轻松/天堂/荒凉/未植入芯片/无尽）。严格模式：必须正好包含全部 51 个键、类型一致且数值一致（浮点容差 0.01）；缺键（旧存档格式）或出现未知键（新版本/模组）都显示“自定义”，不做猜测。旧存档要等游戏用当前版本重新保存一次才会命中预设。
 - **角色**：从存档的 `character` 字段读 0/1/2，显示官方短名 Experiment / Milky / Dune；越界值保留原值显示为“未知角色（n）”，小数同样按原值显示；字段缺失的旧存档不占位。
 - **资源上限**：归档条目数、单文件与总展开大小、压缩比和解压后的 JSON 大小都有上限；超限会安全失败并清理临时目录，不影响现有组与链接。
+
+### 兼容的存档来源与版本
+
+| 来源 | 已在下列版本验证 | 识别内容 |
+| --- | --- | --- |
+| 原版单槽 | 游戏 `1.0.2` | 根目录 `save.sv`（GZip 压缩的单个 JSON），不带元数据 |
+| QoL.Unknown | `1.1.5` | `slot_N.sv` + `slot_N.sv.meta` + `qol_slots.json`（`Slots` / `Names`）；客机快照 `slot_N.client.json` |
+| Together（联机） | `5.5.4` | `mp_save\`（`save.sv`、`mp_rules.json`、每名玩家一份 `save.sv`）；QoL 存下来的房主槽是 `slot_N.mp\` 四件套 |
+
+- **多人存档页签**：QoL 房主槽、`slot_N.client.json` 客机快照和当前 `mp_save\` 只出现在「多人存档」页签，与单人存档互斥；卡片显示联机规则、玩家名单和每名玩家的物品。
+- **没装 QoL 也能读**：这种情况下 `mp_save\` 就是唯一的联机存档，单独显示为「当前联机存档」。
+- **只读**：不修改任何存档文件；组导出按整目录打包，`mp_save\**` 与 `slot_N.mp\**` 本来就在 ZIP 里。
+- 旧版模组残留的 `mp_save\_session\` 布局不显示，避免和当前存档混淆。
 
 ## 主题
 
