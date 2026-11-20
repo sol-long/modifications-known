@@ -19,6 +19,26 @@ public partial class SavesView : UserControl
         InitializeComponent();
     }
 
+    /// <summary>The toggle is one-way bound: the label flips only after the
+    /// transaction has committed. Ignore the event when the VM itself set the
+    /// value (programmatic change), and let the VM roll it back on cancel/failure.</summary>
+    private async void OnHostingToggled(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch toggle || DataContext is not SavesViewModel viewModel) return;
+        if (toggle.IsChecked == viewModel.IsHostingEnabled) return;
+
+        try
+        {
+            await viewModel.SetHostingAsync(toggle.IsChecked == true);
+        }
+        finally
+        {
+            // Cancel/failure keeps the committed value in the VM; the one-way
+            // binding will not push an unchanged value back to the control.
+            toggle.IsChecked = viewModel.IsHostingEnabled;
+        }
+    }
+
     /// <summary>
     /// A save group expands on a click anywhere in its card, except on the
     /// buttons (select, menu, chevron) and inside a slot card: those keep their

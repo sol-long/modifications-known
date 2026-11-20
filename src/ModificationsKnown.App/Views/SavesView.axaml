@@ -136,7 +136,8 @@
                     <Border Background="{DynamicResource AccentSoftBrush}"
                             CornerRadius="5"
                             Padding="7,2"
-                            VerticalAlignment="Center">
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding IsHostingEnabled}">
                         <Grid>
                             <TextBlock FontSize="10"
                                        Foreground="{DynamicResource AccentBrush}"
@@ -156,19 +157,36 @@
                 <TextBlock Text="每个游戏目录可有多个完整存档组。点击存档组后立即保存；当前实例会切换 LocalLow 链接，其他实例只更新选定组。游戏运行时锁定存档读写。"
                            Classes="muted"
                            FontSize="12"
-                           TextWrapping="Wrap" />
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding IsHostingEnabled}" />
             </StackPanel>
             <StackPanel Grid.Column="1"
                         Orientation="Horizontal"
-                        Spacing="8"
+                        Spacing="12"
                         VerticalAlignment="Top">
+                <StackPanel Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Text="由 MK 管理存档"
+                               FontSize="12"
+                               HorizontalAlignment="Right" />
+                </StackPanel>
+                <ToggleSwitch Name="HostingToggle"
+                              IsChecked="{Binding IsHostingEnabled, Mode=OneWay}"
+                              IsEnabled="{Binding CanToggleHosting}"
+                              OnContent=""
+                              OffContent=""
+                              AutomationProperties.Name="由 MK 管理存档"
+                              VerticalAlignment="Center"
+                              IsCheckedChanged="OnHostingToggled" />
                 <Button Classes="Primary"
                         Content="刷新"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding IsHostingEnabled}"
                         Command="{Binding RefreshCommand}" />
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" RowDefinitions="Auto,*" RowSpacing="10">
+        <Grid Grid.Row="1" RowDefinitions="Auto,*" RowSpacing="10"
+              IsVisible="{Binding IsHostingEnabled}">
             <Border IsVisible="{Binding AnyRunning}"
                     Background="{DynamicResource SurfaceAltBrush}"
                     BorderBrush="{DynamicResource WarningBrush}"
@@ -651,5 +669,45 @@
                     Cursor="Wait"
                     IsVisible="{Binding IsBusy}" />
         </Grid>
+
+        <!-- Disabled mode keeps only the switch and these two lines; no group
+             list, no instance cards and no group metadata queries. -->
+        <Border Grid.Row="1"
+                IsVisible="{Binding IsHostingDisabled}"
+                Background="{DynamicResource SurfaceAltBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="18,16"
+                VerticalAlignment="Top">
+            <StackPanel Spacing="10">
+                <TextBlock Text="游戏正在使用自己的存档目录：MK 不再读取、切换或备份它。"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="重新开启后，可以把外面的存档导入成新组，或覆盖到已有组。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+                <Border IsVisible="{Binding HasHostingRecovery}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource WarningBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="12,10"
+                        Margin="0,4,0,0">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding HostingRecoveryHint}"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource WarningBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="恢复托管"
+                                    Classes="Primary"
+                                    Command="{Binding AcceptExistingLinkCommand}" />
+                            <Button Content="安全关闭（还原存档）"
+                                    Command="{Binding DisableHostingFromRecoveryCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>
