@@ -40,6 +40,25 @@ public sealed class SaveSlotReader
         @"^auto[_-]?save([_-]\d+)?$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    /// <summary>QoL's multiplayer bundle folder (<c>slot_9.mp</c>), owned by
+    /// <see cref="MultiplayerSaveReader"/> and never enumerated as loose saves.</summary>
+    private static readonly Regex MpBundleDirectoryPattern = new(
+        @"^slot_\d+\.mp$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    private static bool IsReparsePoint(string path)
+    {
+        try
+        {
+            return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+        }
+        catch (Exception)
+        {
+            // Unreadable attributes: treat it as unsafe to walk.
+            return true;
+        }
+    }
+
     public SaveGroupDetails ReadGroup(
         string groupDirectory,
         string? gameDirectory = null,
@@ -134,6 +153,19 @@ public sealed class SaveSlotReader
             entries.Add(entry);
         }
 
+        // QoL classifies its own slots in the sidecar; use that instead of guessing
+        // from files, so a host bundle and a client snapshot never show up as
+        // ordinary single-player slots.
+        foreach (var entry in entries)
+        {
+            if (entry.Kind != SaveArtifactKind.Slot) continue;
+
+            if (string.Equals(entry.SaveKind, "MultiplayerHostBundle", StringComparison.OrdinalIgnoreCase))
+                entry.Kind = SaveArtifactKind.MultiplayerHostSlot;
+            else if (string.Equals(entry.SaveKind, "MultiplayerClientInventory", StringComparison.OrdinalIgnoreCase))
+                entry.Kind = SaveArtifactKind.MultiplayerClientSnapshot;
+        }
+
         var hasGeneric = entries.Exists(entry => entry.Kind == SaveArtifactKind.Generic);
         var layout = entries.Count == 0
             ? SaveLayoutKind.Empty
@@ -145,15 +177,32 @@ public sealed class SaveSlotReader
 
         var saves = Deduplicate(entries);
 
-        var ordered = saves
+        var singleSaves = saves.Where(entry => !IsMultiplayerKind(entry.Kind)).ToList();
+        var multiplayerSaves = saves.Where(entry => IsMultiplayerKind(entry.Kind)).ToList();
+
+        foreach (var entry in multiplayerSaves)
+            MultiplayerSaveReader.Enrich(entry, root, language);
+
+        var live = MultiplayerSaveReader.TryReadLive(root, language);
+        if (live is not null && !TryMarkCurrentProgress(live, multiplayerSaves, root))
+            multiplayerSaves.Insert(0, live);
+
+        var ordered = singleSaves
             .OrderBy(entry => KindRank(entry.Kind))
             .ThenBy(entry => entry.SlotNumber ?? int.MaxValue)
             .ThenBy(entry => entry.FileName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        multiplayerSaves = multiplayerSaves
+            .OrderBy(entry => entry.Kind == SaveArtifactKind.LiveMultiplayer ? 0 : 1)
+            .ThenBy(entry => entry.SlotNumber ?? int.MaxValue)
+            .ToList();
+
         foreach (var entry in ordered) FinalizeDerived(entry, language);
+        foreach (var entry in multiplayerSaves) FinalizeDerived(entry, language);
 
         var mostRecent = ordered
+            .Concat(multiplayerSaves)
             .Where(entry => entry.SavedAt.HasValue)
             .OrderByDescending(entry => entry.SavedAt)
             .ThenBy(entry => entry.SlotNumber ?? int.MaxValue)
@@ -162,11 +211,9 @@ public sealed class SaveSlotReader
 
         if (mostRecent is not null) mostRecent.IsMostRecent = true;
 
-        var occupiedSlots = ordered
-            .Where(entry => entry.Kind == SaveArtifactKind.Slot && entry.SlotNumber.HasValue)
-            .Select(entry => entry.SlotNumber!.Value)
-            .Distinct()
-            .Count();
+        // Multiplayer slots are still slots: count every root slot number so a
+        // host bundle or a client snapshot is never reported as an empty slot.
+        var occupiedSlots = slots.Keys.Count;
 
         var slotCount = layout switch
         {
@@ -182,17 +229,27 @@ public sealed class SaveSlotReader
             .OrderBy(number => number)
             .ToList();
 
+        var multiplayerSlotCount = multiplayerSaves.Count(entry => entry.Kind != SaveArtifactKind.LiveMultiplayer);
+
         return new SaveGroupDetails
         {
             Layout = layout,
             Saves = ordered,
+            MultiplayerSaves = multiplayerSaves,
+            MultiplayerSlotCount = multiplayerSlotCount,
             SlotCount = slotCount,
             DeclaredSlotCount = declaredSlots,
             EmptySlotCount = declaredSlots > 0 ? Math.Max(0, declaredSlots - occupiedSlots) : 0,
             EmptySlots = emptySlots,
             MostRecentLabel = mostRecent?.Label,
             MostRecentDetail = mostRecent is null ? null : DescribeRecent(mostRecent),
-            SummaryLabel = BuildSummary(layout, ordered, slotCount, mostRecent)
+            SummaryLabel = BuildSummary(
+                layout,
+                ordered,
+                slotCount,
+                multiplayerSlotCount,
+                multiplayerSaves.Any(entry => entry.Kind == SaveArtifactKind.LiveMultiplayer),
+                mostRecent)
         };
     }
 
@@ -314,6 +371,11 @@ public sealed class SaveSlotReader
             entry.LayerIndex = ReadInt(FindProperty(root, "BiomeIndex", "Biome")) ?? entry.LayerIndex;
             entry.IgtSeconds = ReadDouble(FindProperty(root, "IGTSeconds", "IgtSeconds", "RunTime")) ?? entry.IgtSeconds;
             entry.SaveKind = ReadString(FindProperty(root, "SaveKind")) ?? entry.SaveKind;
+            entry.MultiplayerSaveId = ReadString(FindProperty(root, "MultiplayerSaveId", "KrokoshaSaveId")) ?? entry.MultiplayerSaveId;
+            entry.MultiplayerVersion = ReadString(FindProperty(root, "MultiplayerVersion", "KrokoshaMpVersion")) ?? entry.MultiplayerVersion;
+            entry.MultiplayerGameVersion = ReadString(FindProperty(root, "MultiplayerGameVersion", "KrokoshaGameVersion")) ?? entry.MultiplayerGameVersion;
+            entry.MultiplayerBundleName = ReadString(FindProperty(root, "MultiplayerBundleName")) ?? entry.MultiplayerBundleName;
+            entry.LocalPersistentPlayerId = ReadString(FindProperty(root, "LocalPersistentPlayerId")) ?? entry.LocalPersistentPlayerId;
             entry.SeedValue = ReadLong(FindProperty(root, "SeedValue", "Seed")) ?? entry.SeedValue;
             entry.DepthMeters = ReadDouble(FindProperty(root, "DepthMeters", "Depth")) ?? entry.DepthMeters;
             entry.Cheated = ReadBool(FindProperty(root, "Cheated", "IsCheated")) ?? entry.Cheated;
@@ -324,6 +386,11 @@ public sealed class SaveSlotReader
             {
                 entry.ModCount = mods.GetArrayLength();
                 entry.IsModded = entry.ModCount > 0;
+                entry.MetaModNames = mods
+                    .EnumerateArray()
+                    .Select(mod => ReadString(FindProperty(mod, "Name", "Guid", "name")) ?? string.Empty)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .ToList();
             }
             else if (ReadInt(FindProperty(root, "ModCount")) is { } modCount)
             {
@@ -333,7 +400,7 @@ public sealed class SaveSlotReader
         }
     }
 
-    private static void ReadContent(SaveSlotMetadata entry)
+    internal static void ReadContent(SaveSlotMetadata entry)
     {
         long fileSize;
         try
@@ -554,6 +621,15 @@ public sealed class SaveSlotReader
 
         foreach (var entry in entries)
         {
+            // Multiplayer entities are never merged with single-player saves: a
+            // bundle's save.sv is byte-identical to its slot file, and merging them
+            // produced labels like "槽 9 · save.sv".
+            if (IsMultiplayerKind(entry.Kind))
+            {
+                groups.Add([entry]);
+                continue;
+            }
+
             if (string.IsNullOrEmpty(entry.ContentHash) || entry.FileSize == 0)
             {
                 // A failed hash (or two empty files) must never merge unrelated saves.
@@ -655,15 +731,19 @@ public sealed class SaveSlotReader
         SaveLayoutKind layout,
         IReadOnlyList<SaveSlotMetadata> saves,
         int slotCount,
+        int multiplayerSlotCount,
+        bool hasLive,
         SaveSlotMetadata? mostRecent)
     {
-        if (layout == SaveLayoutKind.Empty) return "尚无存档文件";
+        if (layout == SaveLayoutKind.Empty)
+            return hasLive ? "当前联机存档" : "尚无存档文件";
         if (layout == SaveLayoutKind.Generic) return $"{saves.Count} 个存档（未识别布局）";
 
         var autosaves = saves.Count(save => save.Kind == SaveArtifactKind.Autosave);
         var baseLabel = layout == SaveLayoutKind.SingleSave
             ? "1 个存档（原版单槽）"
             : slotCount > 0 ? $"{slotCount} 个槽位" : "尚无存档文件";
+        if (multiplayerSlotCount > 0) baseLabel += $"（其中 {multiplayerSlotCount} 个联机）";
         if (autosaves > 0) baseLabel += $" · {autosaves} 个自动存档";
 
         return mostRecent is null ? baseLabel : $"{baseLabel} · 最近保存：{DescribeRecent(mostRecent)}";
@@ -674,7 +754,10 @@ public sealed class SaveSlotReader
     /// summary shows the played time instead.</summary>
     private static string DescribeRecent(SaveSlotMetadata save)
     {
-        var parts = new List<string> { string.IsNullOrWhiteSpace(save.Label) ? save.FileName : save.Label };
+        var label = string.IsNullOrWhiteSpace(save.Label) ? save.FileName : save.Label;
+        if (save.Kind == SaveArtifactKind.LiveMultiplayer) label = "当前联机存档（未存为槽位）";
+        else if (IsMultiplayerKind(save.Kind)) label += "（联机）";
+        var parts = new List<string> { label };
         if (!string.IsNullOrWhiteSpace(save.LocationName)) parts.Add(save.LocationName);
         if (!string.IsNullOrWhiteSpace(save.LayerName)) parts.Add(save.LayerName);
         if (!string.IsNullOrWhiteSpace(save.DifficultyLabel)) parts.Add(save.DifficultyLabel);
@@ -730,6 +813,10 @@ public sealed class SaveSlotReader
             {
                 var name = Path.GetFileName(child);
                 if (name.StartsWith('.')) continue;
+                // slot_N.mp\ belongs to slot_N.sv; MultiplayerSaveReader owns it, so
+                // its player saves must not surface as loose "文件" cards.
+                if (MpBundleDirectoryPattern.IsMatch(name)) continue;
+                if (IsReparsePoint(child)) continue;
                 // casualty_reports and mp_save are app data, not the group's run
                 // saves; including them made "最近保存" show mp_save's own save.sv.
                 if (string.Equals(name, "casualty_reports", StringComparison.OrdinalIgnoreCase)) continue;
@@ -835,9 +922,62 @@ public sealed class SaveSlotReader
         SaveArtifactKind.Slot => 0,
         SaveArtifactKind.SingleSave => 1,
         SaveArtifactKind.Current => 2,
+        SaveArtifactKind.LiveMultiplayer => 2,
         SaveArtifactKind.Autosave => 3,
+        SaveArtifactKind.MultiplayerHostSlot => 3,
+        SaveArtifactKind.MultiplayerClientSnapshot => 3,
         _ => 4
     };
+
+    internal static bool IsMultiplayerKind(SaveArtifactKind kind) =>
+        kind is SaveArtifactKind.MultiplayerHostSlot
+            or SaveArtifactKind.MultiplayerClientSnapshot
+            or SaveArtifactKind.LiveMultiplayer;
+
+    /// <summary>Marks the host bundle that is byte-identical to the live directory.
+    /// Returns true when a match was found, in which case the live card is hidden
+    /// and the slot shows "= 当前进度".</summary>
+    private static bool TryMarkCurrentProgress(
+        SaveSlotMetadata live,
+        IReadOnlyList<SaveSlotMetadata> multiplayerSaves,
+        string root)
+    {
+        foreach (var entry in multiplayerSaves)
+        {
+            if (entry.Kind != SaveArtifactKind.MultiplayerHostSlot) continue;
+
+            var bundleName = string.IsNullOrWhiteSpace(entry.MultiplayerBundleName)
+                ? $"slot_{entry.SlotNumber}{MultiplayerSaveReader.HostBundleSuffix}"
+                : entry.MultiplayerBundleName!;
+            var bundle = ResolveWithin(root, bundleName);
+            if (bundle is null) continue;
+
+            if (MultiplayerSaveReader.BundlesEqual(live.FilePath, bundle))
+            {
+                entry.Multiplayer!.IsCurrentProgress = true;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? ResolveWithin(string root, string relative)
+    {
+        try
+        {
+            var rootFull = Path.GetFullPath(root)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var combined = Path.GetFullPath(Path.Combine(rootFull, relative));
+            return combined.StartsWith(rootFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                ? combined
+                : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
 
     private static string FormatDuration(double seconds)
     {
@@ -1066,6 +1206,14 @@ internal sealed class SaveLanguage
 
         var raw = value.ToString("0.###", CultureInfo.InvariantCulture);
         return $"未知角色（{raw}）";
+    }
+
+    /// <summary>Item display name from the game's Lang table (<c>/main/&lt;itemId&gt;</c>).
+    /// Unknown ids fall back to the raw id so nothing disappears.</summary>
+    public string ItemName(string itemId)
+    {
+        if (string.IsNullOrWhiteSpace(itemId)) return string.Empty;
+        return Get($"/main/{itemId}") ?? itemId;
     }
 
     private string? Get(string key)

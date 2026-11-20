@@ -32,7 +32,16 @@ public enum SaveArtifactKind
     SingleSave,
 
     /// <summary>An unclaimed file in an unrecognised layout.</summary>
-    Generic
+    Generic,
+
+    /// <summary>A slot holding a QoL multiplayer host bundle (<c>slot_N.mp\</c>).</summary>
+    MultiplayerHostSlot,
+
+    /// <summary>A slot holding QoL's client-side inventory snapshot (<c>slot_N.client.json</c>).</summary>
+    MultiplayerClientSnapshot,
+
+    /// <summary>The live <c>mp_save\</c> directory: the run the game would continue.</summary>
+    LiveMultiplayer
 }
 
 /// <summary>
@@ -44,8 +53,17 @@ public sealed class SaveGroupDetails
 {
     public SaveLayoutKind Layout { get; init; } = SaveLayoutKind.Empty;
 
-    /// <summary>Deduplicated saves, slots first, then autosave/current, then generic.</summary>
+    /// <summary>Deduplicated saves, slots first, then autosave/current, then generic.
+    /// Multiplayer entities are kept out of this list; see <see cref="MultiplayerSaves"/>.</summary>
     public IReadOnlyList<SaveSlotMetadata> Saves { get; init; } = [];
+
+    /// <summary>Multiplayer entities for the detail view: live first, then by slot number.</summary>
+    public IReadOnlyList<SaveSlotMetadata> MultiplayerSaves { get; init; } = [];
+
+    /// <summary>Slots that hold multiplayer data (host bundles and client snapshots).</summary>
+    public int MultiplayerSlotCount { get; init; }
+
+    public bool HasMultiplayer => MultiplayerSaves.Count > 0;
 
     /// <summary>Total slot capacity (declared slots or the highest slot seen).</summary>
     public int SlotCount { get; init; }
