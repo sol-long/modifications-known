@@ -16,10 +16,18 @@ internal sealed class FakeSaveLinker : ISaveLinker
 
     public bool FailRemove { get; set; }
 
+    public bool FailReadBack { get; set; }
+
     public bool Exists(string path) => Directory.Exists(path);
 
     public bool TryGetTarget(string path, out string target)
     {
+        if (FailReadBack)
+        {
+            target = string.Empty;
+            return false;
+        }
+
         if (Targets.TryGetValue(Normalize(path), out var value))
         {
             target = value;
@@ -108,6 +116,7 @@ internal sealed class SaveGroupTestContext : IDisposable
         ProfilesRoot = Temp.CreateDirectory("profiles");
         BackupsRoot = Temp.CreateDirectory("backups");
         StagingRoot = Temp.CreateDirectory("staging");
+        JournalRoot = Temp.CreateDirectory("journal");
         Live = Path.Combine(Temp.Path, "LocalLow", "Orsoniks", "CasualtiesUnknown");
         CatalogPath = Path.Combine(Temp.Path, "save-groups.json");
         GameDirectory = Temp.CreateDirectory("game");
@@ -122,6 +131,8 @@ internal sealed class SaveGroupTestContext : IDisposable
     public string BackupsRoot { get; }
 
     public string StagingRoot { get; }
+
+    public string JournalRoot { get; }
 
     public string Live { get; }
 
@@ -141,7 +152,14 @@ internal sealed class SaveGroupTestContext : IDisposable
     /// information cannot be read). Null follows <see cref="Running"/>.</summary>
     public GameRunningState? ProbeState { get; set; }
 
+    /// <summary>Global probe used by hosting switches. Defaults to
+    /// <see cref="ProbeState"/>/<see cref="Running"/> so existing tests keep
+    /// their single-installation semantics.</summary>
+    public GameRunningState? ProbeAnyState { get; set; }
+
     public SaveGroupService Service { get; }
+
+    public Action<string>? HostingFaultHook { get; set; }
 
     public string InstallationKey => SaveGroupFormat.GetInstallationKey(GameDirectory);
 
@@ -154,12 +172,17 @@ internal sealed class SaveGroupTestContext : IDisposable
             CatalogPath = catalogPath ?? CatalogPath,
             BackupsRoot = BackupsRoot,
             StagingRoot = StagingRoot,
+            JournalRoot = JournalRoot,
             LiveSaveDirectory = Live,
             Linker = Linker,
             RecycleBin = RecycleBin,
             IsGameRunning = _ => Running,
             ProbeGameRunningState = _ => ProbeState
-                                         ?? (Running ? GameRunningState.Running : GameRunningState.NotRunning)
+                                         ?? (Running ? GameRunningState.Running : GameRunningState.NotRunning),
+            ProbeAnyGameRunningState = () => ProbeAnyState
+                                                  ?? ProbeState
+                                                  ?? (Running ? GameRunningState.Running : GameRunningState.NotRunning),
+            HostingFaultHook = HostingFaultHook
         });
 
     public string WriteLegacyFile(string relative, string content)

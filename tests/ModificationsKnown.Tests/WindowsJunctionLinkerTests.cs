@@ -20,10 +20,17 @@ public sealed class WindowsJunctionLinkerTests
         Assert.True(linker.TryGetTarget(link, out var readTarget));
         Assert.Equal(Path.GetFullPath(target), Path.GetFullPath(readTarget));
 
+        // A junction is a real mapping, not a copied folder: reads and writes
+        // through the link land in the target.
+        Assert.Equal("payload", File.ReadAllText(Path.Combine(link, "save.sv")));
+        File.WriteAllText(Path.Combine(link, "through-link.txt"), "written");
+        Assert.Equal("written", File.ReadAllText(Path.Combine(target, "through-link.txt")));
+
         Assert.True(linker.RemoveJunction(link, out var removeError), removeError);
         Assert.False(Directory.Exists(link));
         Assert.True(Directory.Exists(target));
         Assert.Equal("payload", File.ReadAllText(Path.Combine(target, "save.sv")));
+        Assert.Equal("written", File.ReadAllText(Path.Combine(target, "through-link.txt")));
     }
 
     [Fact]

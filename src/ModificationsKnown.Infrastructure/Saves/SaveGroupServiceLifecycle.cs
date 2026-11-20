@@ -242,6 +242,10 @@ public sealed partial class SaveGroupService
     {
         lock (_writeGate)
         {
+            var hostingBlocked = HostingWriteBlock();
+            if (hostingBlocked is not null)
+                return new SaveGroupActivationResult(SaveGroupActivationState.Failed, hostingBlocked);
+
             var blocked = RunningBlock(
                 installation,
                 () => "游戏正在运行；请先关闭游戏再切换存档组。",

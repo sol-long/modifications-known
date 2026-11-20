@@ -128,6 +128,9 @@ public sealed class SaveGroupArchiveService
             {
                 if (groups is null) return ImportFailure("存档组服务不可用。");
 
+                if (groups.HostingState != SaveHostingState.Enabled)
+                    return ImportFailure("存档托管已关闭或正在切换；未导入存档组。");
+
                 // The whole import (inspection + extraction + registration)
                 // runs under the save lock so apply/delete cannot change the
                 // groups while files are being restored.
